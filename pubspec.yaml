@@ -1,0 +1,42 @@
+name: what2eat
+description: "A new Flutter project."
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image_picker: ^0.8.7+5
+  shared_preferences: ^2.1.5
+  cupertino_icons: ^1.0.8
+  flutter_native_splash: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon_bw.png"
+
+flutter_native_splash:
+  color: "#000000"
+  image: assets/splash_screen/splash_screen_bw.png
+
+  android: true
+  ios: true
+
+  android_12:
+    image: assets/splash_screen/splash_screen_bw.png
+    icon_background_color: "#000000"
