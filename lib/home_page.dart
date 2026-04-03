@@ -30,6 +30,7 @@ class _What2EatAppState extends State<What2EatApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false, // 🔥 hinzufügen
       title: 'What2Eat',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
@@ -414,7 +415,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
     if (animate) {
       _isRejectAnimationRunning = true;
       setState(() {
-        _swipeVerticalOffset = -700;
+        _swipeVerticalOffset = -MediaQuery.of(context).size.height;
         _isRejecting = true;
       });
       Future.delayed(const Duration(milliseconds: 260), () {
@@ -442,6 +443,8 @@ class _MetaHomePageState extends State<MetaHomePage> {
     setState(() {
       _swipeIndex = 0;
       _isSwipeCardFlipped = false;
+      _swipeVerticalOffset = 0;
+      _isRejecting = false;
     });
   }
 
@@ -687,7 +690,15 @@ class _MetaHomePageState extends State<MetaHomePage> {
                 right: 0,
                 child: Center(
                   child: GestureDetector(
-                    onTap: () => setState(() => _selectedIndex = 1),
+                    onTap: () {
+                      if (_selectedIndex == 1) {
+                        // 🔥 schon auf Swipe → reset
+                        _resetSwipeStack();
+                      } else {
+                        // 🔄 wechseln zur Swipe-Seite
+                        setState(() => _selectedIndex = 1);
+                      }
+                    },
                     child: Container(
                       width: 64,
                       height: 64,
@@ -754,7 +765,8 @@ class _MetaHomePageState extends State<MetaHomePage> {
         },
         onVerticalDragEnd: (details) {
           setState(() {
-            // gleiche Logik wie vorher
+            _swipeVerticalOffset = 0;
+            _isRejecting = false;
           });
         },
         onVerticalDragCancel: () {
@@ -782,8 +794,8 @@ class _MetaHomePageState extends State<MetaHomePage> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
         ),
         surfaceTintColor: Theme.of(context).brightness == Brightness.light
-                ? const Color.fromARGB(255, 210, 214, 211)
-                : const Color.fromARGB(255, 50, 50, 60),
+            ? const Color.fromARGB(255, 210, 214, 211)
+            : const Color.fromARGB(255, 50, 50, 60),
         centerTitle: false,
         flexibleSpace: Row(
           children: [

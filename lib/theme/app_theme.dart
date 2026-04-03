@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const _green = Color(0xFF057B3A);
-
-  // + viele weitere…
   static ThemeData light = ThemeData(
     useMaterial3: true,
     colorScheme: const ColorScheme(

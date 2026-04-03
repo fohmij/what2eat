@@ -40,7 +40,9 @@ class SwipePage extends StatelessWidget {
   }
 
   Widget _buildSwipeCard(BuildContext context, Dish dish) {
-    final verticalOffset = swipeVerticalOffset.clamp(-220.0, 220.0);
+    final verticalOffset = isRejecting
+        ? swipeVerticalOffset // KEIN clamp bei Animation
+        : swipeVerticalOffset.clamp(-220.0, 220.0);
 
     return Stack(
       alignment: Alignment.center,
@@ -82,47 +84,27 @@ class SwipePage extends StatelessWidget {
             ),
           ),
         ),
-        if (isRejecting)
-          Positioned(
-            bottom: 16,
-            left: 24,
-            right: 24,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.close, color: Colors.white),
-                  SizedBox(width: 10),
-                  Text(
-                    'Ablehnen',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        Transform.translate(
-          offset: Offset(0, verticalOffset),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          transform: Matrix4.translationValues(0, verticalOffset, 0),
           child: GestureDetector(
             onVerticalDragUpdate: (details) =>
                 onVerticalDragUpdate(details.delta.dy),
             onVerticalDragEnd: (details) {
-              if (swipeVerticalOffset < -100 ||
-                  details.velocity.pixelsPerSecond.dy < -500) {
-                onRejectSwipe(animate: true);
-              } else {
-                onVerticalDragEnd(details);
-              }
+                if (swipeVerticalOffset < -50 ||
+                    details.velocity.pixelsPerSecond.dy < -500) {
+                  // 🔺 nach oben → reject
+                  onRejectSwipe(animate: true);
+
+                } else if (swipeVerticalOffset > 80 ||
+                          details.velocity.pixelsPerSecond.dy > 500) {
+                  // 🔻 nach unten → reset
+                  onReset();
+
+                } else {
+                  // zurück in Mitte
+                  onVerticalDragEnd(details);
+                }
             },
             onVerticalDragCancel: onVerticalDragCancel,
             child: InkWell(
@@ -212,7 +194,7 @@ class SwipePage extends StatelessWidget {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Tippe zum Lesen oder streiche nach oben zum Ablehnen',
+                        'Tippe zum Lesen oder streiche nach oben zum Ablehnen. Steiche nach unten zum Zurücksetzen.',
                         style: TextStyle(color: Colors.white, fontSize: 14),
                       ),
                     ),
@@ -225,11 +207,12 @@ class SwipePage extends StatelessWidget {
             right: 16,
             bottom: 16,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
                   child: Text(
                     dish.title,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
@@ -241,7 +224,11 @@ class SwipePage extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   '${swipeIndex + 1}/${dishes.length}',
-                 style: TextStyle(color: Colors.white, fontSize: 20),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                    ),
                 ),
               ],
             ),
@@ -371,47 +358,60 @@ class SwipePage extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(left: 16, right: 16,  top: 16, bottom: 0),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 0),
       child: Column(
         children: [
           Expanded(
             child: Stack(
               alignment: Alignment.center,
               children: [
+                // 🔹 Hintergrundkarten
                 for (
                   int level = min(4, dishes.length - swipeIndex - 1);
                   level >= 1;
                   level--
-                ) ...[
+                )
                   Positioned(
-                    top: 18.0 * level,
-                    left: 14.0 * level,
-                    right: 14.0 * level,
-                    bottom: 18.0 * level,
-                    child: Opacity(
-                      opacity: 1 - level * 0.16,
-                      child: Card(
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                            color: Theme.of(
-                              context,
-                            ).dividerColor.withValues(alpha: 0.18),
+                    top: 16.0 * level,
+                    left: 16.0 * level,
+                    right: 16.0 * level,
+                    bottom: 16.0 * level,
+                    child: Card(
+                      clipBehavior: Clip.hardEdge,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          dishes[swipeIndex + level].localImagePath != null &&
+                                  File(
+                                    dishes[swipeIndex + level].localImagePath!,
+                                  ).existsSync()
+                              ? Image.file(
+                                  File(
+                                    dishes[swipeIndex + level].localImagePath!,
+                                  ),
+                                  fit: BoxFit.cover,
+                                )
+                              : Image.network(
+                                  dishes[swipeIndex + level].imageUrl,
+                                  fit: BoxFit.cover,
+                                ),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.transparent, Colors.black54],
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
-                ],
+                // 🔥 FEHLT BEI DIR
                 Positioned(
                   top: 16,
                   left: 16,
@@ -422,13 +422,15 @@ class SwipePage extends StatelessWidget {
               ],
             ),
           ),
-          if (swipeIndex > 0)
-            FilledButton.icon(
-              onPressed: onReset,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Stapel zurücksetzen'),
-            ),
-          const SizedBox(height: 48),
+          // Align(
+          //   alignment: Alignment.centerLeft,
+          //   child: FilledButton.icon(
+          //     onPressed: onReset,
+          //     icon: const Icon(Icons.refresh),
+          //     label: const Text('nochmal'),
+          //   ),
+          // ),
+          const SizedBox(height: 32),
         ],
       ),
     );
