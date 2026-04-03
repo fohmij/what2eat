@@ -2,7 +2,7 @@
 
 What2Eat is a Flutter app that helps you quickly decide what to eat. Save your favorite dishes and swipe through your personal food stack to make a decision.
 
-![App Screenshot](assets/readme/Bild1.png)
+<img src="assets/readme/Bild1.png" width="400" />
 
 ---
 
