@@ -6,7 +6,7 @@ class SettingsPage extends StatelessWidget {
   final int dishCount;
   final int swipeIndex;
   final bool hasMoreCards;
-  
+
   const SettingsPage({
     super.key,
     required this.themeMode,
@@ -14,7 +14,7 @@ class SettingsPage extends StatelessWidget {
     required this.dishCount,
     required this.swipeIndex,
     required this.hasMoreCards,
-});
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +36,21 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
             PopupMenuButton<ThemeMode>(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? const Color.fromARGB(255, 200, 200, 200)
+                      : const Color.fromARGB(255, 74, 74, 74),
+                  width: 1,
+                ),
+              ),
               initialValue: themeMode,
               onSelected: onThemeModeChanged,
               itemBuilder: (context) => [
                 PopupMenuItem(
+                  padding: const EdgeInsets.only(left: 12),
                   value: ThemeMode.system,
                   child: Row(
                     children: [
@@ -91,7 +102,7 @@ class SettingsPage extends StatelessWidget {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
+                    horizontal: 16,
                     vertical: 12,
                   ),
                   child: Row(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -147,20 +146,17 @@ class _MetaHomePageState extends State<MetaHomePage> {
     super.dispose();
   }
 
-  String _generateAutoImageUrl(String title) {
-    final query = Uri.encodeComponent(title.isEmpty ? 'food' : title);
-    final seed = Random().nextInt(1000000);
-    return 'https://loremflickr.com/800/600/$query?random=$seed';
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _pickImage(
+    ImageSource source,
+    void Function(void Function()) setModalState,
+  ) async {
     final picked = await _picker.pickImage(
       source: source,
       maxWidth: 1200,
       maxHeight: 1200,
     );
     if (picked != null) {
-      setState(() {
+      setModalState(() {
         _selectedImagePath = picked.path;
         _imageUrlController.clear();
       });
@@ -191,11 +187,17 @@ class _MetaHomePageState extends State<MetaHomePage> {
       isScrollControlled: true,
       context: context,
       builder: (dialogContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(dialogContext).viewInsets.bottom,
-          ),
-          child: SingleChildScrollView(child: _buildAddDishForm()),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                child: _buildAddDishForm(setModalState),
+              ),
+            );
+          },
         );
       },
     );
@@ -448,7 +450,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
     });
   }
 
-  Widget _buildAddDishForm() {
+  Widget _buildAddDishForm(void Function(void Function()) setModalState) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Form(
@@ -456,25 +458,13 @@ class _MetaHomePageState extends State<MetaHomePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              _isEditing ? 'Gericht bearbeiten' : 'Neues Gericht',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Titel',
-                border: OutlineInputBorder(),
+            Align(
+              child: Text(
+                _isEditing ? 'Gericht bearbeiten' : 'Neues Gericht',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Bitte gib einen Titel ein.';
-                }
-                return null;
-              },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             if (_selectedImagePath != null ||
                 _imageUrlController.text.trim().isNotEmpty)
               Column(
@@ -507,45 +497,75 @@ class _MetaHomePageState extends State<MetaHomePage> {
                   const SizedBox(height: 12),
                 ],
               ),
+            const SizedBox(width: 16),
             Row(
               children: [
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _pickImage(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library),
-                    label: const Text('Galerie'),
+                  child: TextFormField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Titel',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Bitte gib einen Titel ein.';
+                      }
+                      return null;
+                    },
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _pickImage(ImageSource.camera),
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Kamera'),
+                const SizedBox(width: 10),
+                PopupMenuButton<ImageSource>(
+                  onSelected: (source) {
+                    _pickImage(source, setModalState);
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(
+                      color: Color.fromARGB(255, 100, 100, 100),
+                      width: 1,
+                    ),
+                  ),
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: ImageSource.gallery,
+                      child: Row(
+                        children: const [
+                          Icon(Icons.photo_library, color: Colors.grey),
+                          SizedBox(width: 12),
+                          Text('Galerie'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: ImageSource.camera,
+                      child: Row(
+                        children: const [
+                          Icon(Icons.camera_alt, color: Colors.grey),
+                          SizedBox(width: 12),
+                          Text('Kamera'),
+                        ],
+                      ),
+                    ),
+                  ],
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Theme.of(context).brightness == Brightness.light
+                          ? const Color.fromARGB(255, 202, 202, 202)
+                          : const Color.fromARGB(255, 65, 65, 65),
+                    ),
+                    child: IconButton(
+                      onPressed: null,
+                      icon: const Icon(Icons.add_a_photo_outlined),
+                      color: Colors.grey,
+                      highlightColor: Colors.green,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 10),
               ],
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () {
-                final url = _generateAutoImageUrl(_titleController.text.trim());
-                setState(() {
-                  _selectedImagePath = null;
-                  _imageUrlController.text = url;
-                });
-              },
-              icon: const Icon(Icons.autorenew),
-              label: const Text('Automatisch generieren'),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _imageUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Bild-URL (optional)',
-                hintText: 'https://example.com/bild.jpg',
-                border: OutlineInputBorder(),
-              ),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -557,14 +577,23 @@ class _MetaHomePageState extends State<MetaHomePage> {
               maxLines: 4,
             ),
             const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _saveDish,
-              icon: const Icon(Icons.save),
-              label: Text(
-                _isEditing ? 'Gericht aktualisieren' : 'Gericht speichern',
+            Container(
+              height: 70,
+              width: 70,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(50),
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              child: IconButton(
+                onPressed: _saveDish,
+                icon: const Icon(Icons.save),
+                color: Theme.of(context).brightness == Brightness.light
+                    ? Colors.white
+                    : Colors.black,
+                iconSize: 28,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 100),
           ],
         ),
       ),

@@ -31,12 +31,18 @@ flutter_launcher_icons:
   image_path: "assets/icon/app_icon_mix.png"
 
 flutter_native_splash:
-  color: "#262626"
-  image: assets/splash_screen/splash_screen_mix.png
+  color: "#ffffff"
+  image: assets/splash_screen/splash_screen_light.png
+
+  color_dark: "#262626"
+  image_dark: assets/splash_screen/splash_screen_dark.png
 
   android: true
   ios: true
 
   android_12:
-    image: assets/splash_screen/splash_screen_mix.png
-    icon_background_color: "#262626"
+    image: assets/splash_screen/splash_screen_light.png
+    icon_background_color: "#ffffff"
+
+    image_dark: assets/splash_screen/splash_screen_dark.png
+    icon_background_color_dark: "#262626"

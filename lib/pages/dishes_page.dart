@@ -45,9 +45,11 @@ class DishesPage extends StatelessWidget {
                             childAspectRatio: 0.65,
                           ),
                       itemCount: dishes.length,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+                      padding: const EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        top: 8,
+                        bottom: 80,
                       ),
                       itemBuilder: (context, index) {
                         final dish = dishes[index];

@@ -367,7 +367,7 @@ class SwipePage extends StatelessWidget {
               children: [
                 // 🔹 Hintergrundkarten
                 for (
-                  int level = min(4, dishes.length - swipeIndex - 1);
+                  int level = min(dishes.length, dishes.length - swipeIndex - 1);
                   level >= 1;
                   level--
                 )
