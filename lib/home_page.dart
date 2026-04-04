@@ -323,11 +323,26 @@ class _MetaHomePageState extends State<MetaHomePage> {
                   decoration: BoxDecoration(
                     color: Theme.of(context).brightness == Brightness.light
                         ? Colors.grey
-                        : Colors.white,
+                        : const Color.fromARGB(255, 75, 75, 75),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ),
+              Text(
+                dish.title,
+                style: TextStyle(
+                  fontSize: 24,
+                  // fontWeight: FontWeight.w400
+                ),
+              ),
+              Divider(
+                height: 16,
+                thickness: 1,
+                color: Theme.of(context).brightness == Brightness.light
+                    ? Colors.grey
+                    : const Color.fromARGB(255, 75, 75, 75),
+              ),
+              const SizedBox(height: 16),
               if (dish.localImagePath != null &&
                   File(dish.localImagePath!).existsSync())
                 ClipRRect(
@@ -356,11 +371,6 @@ class _MetaHomePageState extends State<MetaHomePage> {
                     ),
                   ),
                 ),
-              const SizedBox(height: 16),
-              Text(
-                dish.title,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
               if (dish.description.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Text(
@@ -375,6 +385,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.error,
+                        foregroundColor: Colors.white,
                       ),
                       onPressed: () async {
                         final navigator = Navigator.of(context);
@@ -452,19 +463,36 @@ class _MetaHomePageState extends State<MetaHomePage> {
 
   Widget _buildAddDishForm(void Function(void Function()) setModalState) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16,),
       child: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Align(
-              child: Text(
-                _isEditing ? 'Gericht bearbeiten' : 'Neues Gericht',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14.0),
+              child: Container(
+                height: 4,
+                width: 48,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? Colors.grey
+                      : const Color.fromARGB(255, 75, 75, 75),
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            Text(
+              _isEditing ? 'Gericht bearbeiten' : 'Neues Gericht',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
+            ),
+            Divider(
+              height: 16,
+              color: Theme.of(context).brightness == Brightness.light
+                  ? const Color.fromARGB(255, 202, 202, 202)
+                  : const Color.fromARGB(255, 65, 65, 65),
+            ),
+            const SizedBox(height: 16),
             if (_selectedImagePath != null ||
                 _imageUrlController.text.trim().isNotEmpty)
               Column(
@@ -586,14 +614,14 @@ class _MetaHomePageState extends State<MetaHomePage> {
               ),
               child: IconButton(
                 onPressed: _saveDish,
-                icon: const Icon(Icons.save),
+                icon: const Icon(Icons.save_outlined),
                 color: Theme.of(context).brightness == Brightness.light
                     ? Colors.white
                     : Colors.black,
                 iconSize: 28,
               ),
             ),
-            const SizedBox(height: 100),
+            const SizedBox(height: 50),
           ],
         ),
       ),
