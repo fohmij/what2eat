@@ -5,6 +5,7 @@ class Dish {
     required this.description,
     required this.imageUrl,
     this.localImagePath,
+    this.tags = const [],
   });
 
   final String id;
@@ -12,6 +13,7 @@ class Dish {
   final String description;
   final String imageUrl;
   final String? localImagePath;
+  final List<String> tags;
 
   Map<String, dynamic> toJson() {
     return {
@@ -20,6 +22,7 @@ class Dish {
       'description': description,
       'imageUrl': imageUrl,
       'localImagePath': localImagePath,
+      'tags': tags,
     };
   }
 
@@ -30,6 +33,7 @@ class Dish {
       description: json['description'] as String,
       imageUrl: json['imageUrl'] as String,
       localImagePath: json['localImagePath'] as String?,
+      tags: List<String>.from(json['tags'] ?? [])
     );
   }
 }

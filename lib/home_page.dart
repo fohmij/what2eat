@@ -5,12 +5,9 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:what2eat/pages/dishes_page.dart';
-import 'package:what2eat/pages/groups_page.dart';
-import 'package:what2eat/pages/group_dishes_management_page.dart';
 import 'package:what2eat/pages/swipe_page.dart';
 import 'package:what2eat/pages/settings_page.dart';
 import 'package:what2eat/models/dish.dart';
-import 'package:what2eat/models/dish_group.dart';
 import 'package:what2eat/theme/app_theme.dart';
 
 class What2EatApp extends StatefulWidget {
@@ -61,15 +58,17 @@ class MetaHomePage extends StatefulWidget {
 
 class _MetaHomePageState extends State<MetaHomePage> {
   static const String _storageKey = 'saved_dishes';
-  static const String _groupsStorageKey = 'saved_groups';
 
   final ImagePicker _picker = ImagePicker();
   final List<Dish> _dishes = [];
-  final List<DishGroup> _groups = [];
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final TextEditingController _tagController = TextEditingController();
   final _imageUrlController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final List<String> _allTags = [];
+  final Set<String> _selectedTags = {};
+
   String? _selectedImagePath;
   Dish? _editingDish;
   bool _isEditing = false;
@@ -78,6 +77,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
   bool _isSwipeCardFlipped = false;
   double _swipeVerticalOffset = 0.0;
   bool _isRejecting = false;
+  final Set<String> _activeTags = {};
 
   bool get isOnSwipePage => _selectedIndex == 1;
   bool get _hasMoreCards => _swipeIndex < _dishes.length;
@@ -90,7 +90,6 @@ class _MetaHomePageState extends State<MetaHomePage> {
 
   Future<void> _loadData() async {
     await _loadDishes();
-    await _loadGroups();
   }
 
   Future<void> _loadDishes() async {
@@ -98,7 +97,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
     if (!mounted) return;
 
     final stored = prefs.getStringList(_storageKey);
-    if (stored != null && stored.isNotEmpty) {
+    if (stored != null) {
       final savedDishes = stored
           .map(
             (jsonString) =>
@@ -138,6 +137,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
       });
       await _saveDishes();
     }
+    _extractTags();
   }
 
   Future<void> _saveDishes() async {
@@ -148,224 +148,10 @@ class _MetaHomePageState extends State<MetaHomePage> {
     await prefs.setStringList(_storageKey, stringList);
   }
 
-  Future<void> _loadGroups() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-
-    final stored = prefs.getStringList(_groupsStorageKey);
-    if (stored != null) {
-      final savedGroups = stored
-          .map(
-            (jsonString) => DishGroup.fromJson(
-              jsonDecode(jsonString) as Map<String, dynamic>,
-            ),
-          )
-          .toList();
-      setState(() {
-        _groups
-          ..clear()
-          ..addAll(savedGroups);
-      });
-      _ensureAllGroupExists();
-    } else {
-      // Standard-Gruppe "Alle Gerichte"
-      final allDishesGroup = DishGroup(
-        id: 'all',
-        name: 'Alle Gerichte',
-        dishIds: _dishes.map((d) => d.id).toList(),
-        isDeletable: false,
-      );
-      setState(() {
-        _groups.add(allDishesGroup);
-      });
-      await _saveGroups();
-    }
-  }
-
-  Future<void> _saveGroups() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stringList = _groups
-        .map((group) => jsonEncode(group.toJson()))
-        .toList();
-    await prefs.setStringList(_groupsStorageKey, stringList);
-  }
-
-  void _updateAllGroup() {
-    final allGroupIndex = _groups.indexWhere((g) => g.id == 'all');
-    if (allGroupIndex != -1) {
-      _groups[allGroupIndex] = _groups[allGroupIndex].copyWith(
-        dishIds: _dishes.map((d) => d.id).toList(),
-      );
-      _saveGroups();
-    }
-  }
-
-  void _ensureAllGroupExists() {
-    final allGroupIndex = _groups.indexWhere((g) => g.id == 'all');
-    if (allGroupIndex == -1) {
-      // Füge die "Alle Gerichte" Gruppe hinzu, wenn sie nicht existiert
-      final allDishesGroup = DishGroup(
-        id: 'all',
-        name: 'Alle Gerichte',
-        dishIds: _dishes.map((d) => d.id).toList(),
-        isDeletable: false,
-      );
-      _groups.insert(0, allDishesGroup); // An den Anfang
-      _saveGroups();
-    } else {
-      _updateAllGroup();
-    }
-  }
-
-  void _showGroupDishes(DishGroup group) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: Text(group.name)),
-          body: DishesPage(
-            dishes: _dishes,
-            group: group,
-            onTap: _showDishDetail,
-            onDelete: _removeDish,
-            onEdit: _showDishDialog,
-            onConfirmDelete: _confirmDelete,
-            onAdd: () => _showGroupDishesManagement(group),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showGroupDishesManagement(DishGroup group) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => GroupDishesManagementPage(
-          allDishes: _dishes,
-          group: group,
-          onGroupUpdated: _updateGroup,
-        ),
-      ),
-    );
-  }
-
-  void _updateGroup(DishGroup updatedGroup) {
-    setState(() {
-      final index = _groups.indexWhere((g) => g.id == updatedGroup.id);
-      if (index != -1) {
-        _groups[index] = updatedGroup;
-      }
-    });
-    _saveGroups();
-  }
-
-  void _removeGroup(DishGroup group) {
-    if (group.id == 'all') return; // Nicht die "Alle Gerichte" Gruppe entfernen
-    setState(() {
-      _groups.remove(group);
-    });
-    _saveGroups();
-  }
-
-  Future<bool> _confirmDeleteGroup(DishGroup group) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Gruppe löschen'),
-            content: Text(
-              'Möchtest du die Gruppe "${group.name}" wirklich löschen?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Abbrechen'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Löschen'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-  }
-
-  Future<void> _showGroupDialog([DishGroup? group]) async {
-    _titleController.text = group?.name ?? '';
-    _editingDish = null; // Kein Dish editieren
-    await showModalBottomSheet<void>(
-      isScrollControlled: true,
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: SingleChildScrollView(
-                child: _buildAddDishForm(
-                  setModalState,
-                  isForGroup: true,
-                  editingGroup: group,
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-    if (mounted) {
-      setState(() {
-        _isEditing = false;
-        _editingDish = null;
-        _prepareDishForm();
-      });
-    }
-  }
-
-  Future<void> _saveGroup(DishGroup? editingGroup) async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final name = _titleController.text.trim();
-    final group = editingGroup != null
-        ? editingGroup.copyWith(name: name)
-        : DishGroup(
-            id: DateTime.now().microsecondsSinceEpoch.toString(),
-            name: name,
-            dishIds: [],
-          );
-
-    setState(() {
-      if (editingGroup != null) {
-        final index = _groups.indexWhere((g) => g.id == editingGroup.id);
-        if (index != -1) {
-          _groups[index] = group;
-        }
-      } else {
-        _groups.insert(0, group);
-      }
-    });
-
-    await _saveGroups();
-    if (!mounted) return;
-
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          editingGroup != null
-              ? 'Gruppe aktualisiert'
-              : 'Gruppe "$name" hinzugefügt',
-        ),
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _titleController.dispose();
+    _tagController.dispose();
     _imageUrlController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -398,6 +184,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
           : '';
       _descriptionController.text = dish.description;
       _selectedImagePath = dish.localImagePath;
+      _selectedTags.addAll(dish.tags);
     } else {
       _titleController.clear();
       _imageUrlController.clear();
@@ -449,6 +236,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
       description: _descriptionController.text.trim(),
       imageUrl: imageUrl,
       localImagePath: _selectedImagePath,
+      tags: _selectedTags.toList(),
     );
 
     setState(() {
@@ -469,7 +257,6 @@ class _MetaHomePageState extends State<MetaHomePage> {
       _swipeIndex = 0;
     });
 
-    _updateAllGroup();
     await _saveDishes();
     if (!mounted) return;
 
@@ -481,6 +268,8 @@ class _MetaHomePageState extends State<MetaHomePage> {
       ),
     );
     Navigator.of(context).pop();
+
+    _extractTags();
   }
 
   Future<bool> _confirmDelete(Dish dish) async {
@@ -568,7 +357,29 @@ class _MetaHomePageState extends State<MetaHomePage> {
                     ? Colors.grey
                     : const Color.fromARGB(255, 75, 75, 75),
               ),
-              const SizedBox(height: 16),
+              if (dish.tags.isNotEmpty) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: dish.tags.map((tag) {
+                      return Chip(
+                        backgroundColor: Color.fromARGB(
+                          255,
+                          0,
+                          255,
+                          8,
+                        ).withAlpha(70),
+                        label: Text(tag),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ] else ...[
+                const SizedBox(height: 12),
+              ],
               if (dish.localImagePath != null &&
                   File(dish.localImagePath!).existsSync())
                 ClipRRect(
@@ -590,7 +401,10 @@ class _MetaHomePageState extends State<MetaHomePage> {
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       height: 220,
-                      color: Colors.grey.shade300,
+                      color: 
+                                                          Theme.of( context,).brightness == Brightness.light
+                                                          ? Colors.white
+                                                          : Theme.of(context).colorScheme.surface,
                       child: const Center(
                         child: Icon(Icons.broken_image, size: 60),
                       ),
@@ -687,11 +501,91 @@ class _MetaHomePageState extends State<MetaHomePage> {
     });
   }
 
-  Widget _buildAddDishForm(
-    void Function(void Function()) setModalState, {
-    bool isForGroup = false,
-    DishGroup? editingGroup,
-  }) {
+  void _extractTags() {
+    final tags = <String>{};
+    for (final dish in _dishes) {
+      tags.addAll(dish.tags);
+    }
+
+    setState(() {
+      _allTags
+        ..clear()
+        ..addAll(tags);
+    });
+    _allTags
+      ..clear()
+      ..addAll(tags.toList()..sort());
+  }
+
+  Future<void> _showAddTagDialog(
+    void Function(void Function()) setModalState,
+  ) async {
+    final controller = TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Neuer Tag'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Tag eingeben...'),
+            onSubmitted: (value) {
+              Navigator.pop(context, value);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, controller.text);
+              },
+              child: const Text('Hinzufügen'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null) return;
+
+    final tag = result.trim();
+    if (tag.isEmpty) return;
+
+    setModalState(() {
+      if (!_allTags.contains(tag)) {
+        _allTags.add(tag);
+      }
+      _selectedTags.add(tag);
+    });
+  }
+
+  Future<bool> _confirmDeleteTag(String tag) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('"$tag" löschen'),
+            content: Text('Möchtest du den Tag "$tag" wirklich löschen?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Abbrechen'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Löschen'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Widget _buildAddDishForm(void Function(void Function()) setModalState) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Form(
@@ -713,9 +607,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
               ),
             ),
             Text(
-              isForGroup
-                  ? (editingGroup != null ? 'Gruppe bearbeiten' : 'Neue Gruppe')
-                  : (_isEditing ? 'Gericht bearbeiten' : 'Neues Gericht'),
+              _isEditing ? 'Gericht bearbeiten' : 'Neues Gericht',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
             ),
             Divider(
@@ -724,7 +616,57 @@ class _MetaHomePageState extends State<MetaHomePage> {
                   ? const Color.fromARGB(255, 202, 202, 202)
                   : const Color.fromARGB(255, 65, 65, 65),
             ),
-            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ..._allTags.map((tag) {
+                    final isSelected = _selectedTags.contains(tag);
+
+                    return GestureDetector(
+                      onLongPress: () async {
+                        final confirm = await _confirmDeleteTag(tag);
+                        if (!confirm) return;
+
+                        setModalState(() {
+                          _allTags.remove(tag);
+                          _selectedTags.remove(tag);
+                        });
+                      },
+                      child: FilterChip(
+                        label: Text(tag),
+                        selected: isSelected,
+                        showCheckmark: false,
+                        onSelected: (selected) {
+                          setModalState(() {
+                            if (selected) {
+                              _selectedTags.add(tag);
+                            } else {
+                              _selectedTags.remove(tag);
+                            }
+                          });
+                        },
+                      ),
+                    );
+                  }),
+
+                  ActionChip(
+                    label: Icon(
+                      Icons.add,
+                      color: Color.fromARGB(255, 41, 95, 44),
+                    ),
+                    labelStyle: TextStyle(color: Colors.grey),
+                    onPressed: () {
+                      _showAddTagDialog(setModalState);
+                    },
+                    padding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             if (_selectedImagePath != null ||
                 _imageUrlController.text.trim().isNotEmpty)
               Column(
@@ -764,7 +706,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
                   child: TextFormField(
                     controller: _titleController,
                     decoration: InputDecoration(
-                      labelText: isForGroup ? 'Gruppenname' : 'Titel',
+                      labelText: 'Titel',
                       border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
@@ -818,7 +760,10 @@ class _MetaHomePageState extends State<MetaHomePage> {
                     ),
                     child: IconButton(
                       onPressed: null,
-                      icon: const Icon(Icons.add_a_photo_outlined),
+                      icon: const Icon(
+                        Icons.add_a_photo_outlined,
+                        color: Colors.white,
+                      ),
                       color: Colors.grey,
                       highlightColor: Colors.green,
                     ),
@@ -828,31 +773,34 @@ class _MetaHomePageState extends State<MetaHomePage> {
               ],
             ),
             const SizedBox(height: 16),
-            if (!isForGroup)
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Beschreibung (optional)',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 4,
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Beschreibung (optional)',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
               ),
-            if (!isForGroup) const SizedBox(height: 24),
+              maxLines: 4,
+            ),
+            const SizedBox(height: 24),
             Container(
               height: 70,
               width: 70,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(50),
-                color: Theme.of(context).colorScheme.primary,
+                color: Colors.transparent,
+                border: Border.all(
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? Colors.grey.withAlpha(150)
+                      : Colors.grey.withAlpha(50),
+                ),
               ),
               child: IconButton(
-                onPressed: isForGroup
-                    ? () => _saveGroup(editingGroup)
-                    : _saveDish,
-                icon: const Icon(Icons.save_outlined),
+                onPressed: _saveDish,
+                icon: const Icon(Icons.save),
                 color: Theme.of(context).brightness == Brightness.light
-                    ? Colors.white
-                    : Colors.black,
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.primary,
                 iconSize: 28,
               ),
             ),
@@ -967,7 +915,8 @@ class _MetaHomePageState extends State<MetaHomePage> {
                                   ? Colors.white
                                   : Theme.of(context).colorScheme.surface)
                             : (isLight
-                                  ? Color.fromARGB(255, 185, 255, 187)
+                                  ? Theme.of(context).colorScheme.primary
+                                  // ? Color.fromARGB(255, 185, 255, 187)
                                   : Color.fromARGB(40, 100, 255, 0)),
                         shape: BoxShape.circle,
                       ),
@@ -978,9 +927,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
                         size: 28,
                         color: !isOnSwipePage
                             ? (isLight ? Colors.black : Colors.white)
-                            : (isLight
-                                  ? Theme.of(context).colorScheme.primary.withGreen(100)
-                                  : Colors.white),
+                            : Colors.white,
                       ),
                     ),
                   ),
@@ -995,17 +942,53 @@ class _MetaHomePageState extends State<MetaHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final filteredDishes = _activeTags.isEmpty
+    ? _dishes
+    : _dishes.where((dish) {
+        return _activeTags.every((tag) => dish.tags.contains(tag));
+      }).toList();
+
     final pages = <Widget>[
-      GroupsPage(
-        groups: _groups,
-        onTap: _showGroupDishes,
-        onDelete: _removeGroup,
-        onEdit: _showGroupDialog,
-        onConfirmDelete: _confirmDeleteGroup,
-        onAdd: _showGroupDialog,
+      DishesPage(
+        dishes: _dishes,
+        onTap: _showDishDetail,
+        onDelete: _removeDish,
+        onEdit: _showDishDialog,
+        onConfirmDelete: _confirmDelete,
+        onAdd: () => _showDishDialog(),
+        allTags: _allTags,
+        activeTags: _activeTags,
+        onTagToggled: (tag) {
+          setState(() {
+            if (tag == '__clear__') {
+              _activeTags.clear();
+              return;
+            }
+
+            if (_activeTags.contains(tag)) {
+              _activeTags.remove(tag);
+            } else {
+              _activeTags.add(tag);
+            }
+          });
+        },
       ),
       SwipePage(
-        dishes: _dishes,
+        dishes: filteredDishes, // 👈 wie oben
+        allTags: _allTags,
+        activeTags: _activeTags,
+        onTagToggled: (tag) {
+          setState(() {
+            _swipeIndex = 0;
+            if (tag == '__clear__') {
+              _activeTags.clear();
+            } else if (_activeTags.contains(tag)) {
+              _activeTags.remove(tag);
+            } else {
+              _activeTags.add(tag);
+            }
+          });
+        },
         swipeIndex: _swipeIndex,
         isSwipeCardFlipped: _isSwipeCardFlipped,
         swipeVerticalOffset: _swipeVerticalOffset,

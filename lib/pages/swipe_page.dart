@@ -19,6 +19,10 @@ class SwipePage extends StatelessWidget {
   final Function(DragEndDetails) onVerticalDragEnd;
   final VoidCallback onVerticalDragCancel;
 
+  final List<String> allTags;
+  final Set<String> activeTags;
+  final ValueChanged<String> onTagToggled;
+
   const SwipePage({
     super.key,
     required this.dishes,
@@ -32,6 +36,9 @@ class SwipePage extends StatelessWidget {
     required this.onVerticalDragUpdate,
     required this.onVerticalDragEnd,
     required this.onVerticalDragCancel,
+    required this.allTags,
+    required this.activeTags,
+    required this.onTagToggled,
   });
 
   @override
@@ -91,20 +98,18 @@ class SwipePage extends StatelessWidget {
             onVerticalDragUpdate: (details) =>
                 onVerticalDragUpdate(details.delta.dy),
             onVerticalDragEnd: (details) {
-                if (swipeVerticalOffset < -50 ||
-                    details.velocity.pixelsPerSecond.dy < -500) {
-                  // 🔺 nach oben → reject
-                  onRejectSwipe(animate: true);
-
-                } else if (swipeVerticalOffset > 80 ||
-                          details.velocity.pixelsPerSecond.dy > 500) {
-                  // 🔻 nach unten → reset
-                  onReset();
-
-                } else {
-                  // zurück in Mitte
-                  onVerticalDragEnd(details);
-                }
+              if (swipeVerticalOffset < -50 ||
+                  details.velocity.pixelsPerSecond.dy < -500) {
+                // 🔺 nach oben → reject
+                onRejectSwipe(animate: true);
+              } else if (swipeVerticalOffset > 80 ||
+                  details.velocity.pixelsPerSecond.dy > 500) {
+                // 🔻 nach unten → reset
+                onReset();
+              } else {
+                // zurück in Mitte
+                onVerticalDragEnd(details);
+              }
             },
             onVerticalDragCancel: onVerticalDragCancel,
             child: InkWell(
@@ -224,11 +229,11 @@ class SwipePage extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   '${swipeIndex + 1}/${dishes.length}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -358,16 +363,54 @@ class SwipePage extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 0),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 5, bottom: 0),
       child: Column(
         children: [
+          SizedBox(
+            height: 35,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+
+                FilterChip(
+                  label: const Text('Alle'),
+                  selected: activeTags.isEmpty,
+                  onSelected: (_) => onTagToggled('__clear__'),
+                  showCheckmark: false,
+                  visualDensity: VisualDensity.compact, 
+                  materialTapTargetSize:
+                      MaterialTapTargetSize.shrinkWrap, 
+                ),
+
+                const SizedBox(width: 8),
+
+                ...allTags.map((tag) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(tag),
+                      showCheckmark: false,
+                      selected: activeTags.contains(tag),
+                      onSelected: (_) => onTagToggled(tag),
+                  visualDensity: VisualDensity.compact, 
+                  materialTapTargetSize:
+                      MaterialTapTargetSize.shrinkWrap, 
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
           Expanded(
             child: Stack(
               alignment: Alignment.center,
               children: [
                 // 🔹 Hintergrundkarten
                 for (
-                  int level = min(dishes.length, dishes.length - swipeIndex - 1);
+                  int level = min(
+                    dishes.length,
+                    dishes.length - swipeIndex - 1,
+                  );
                   level >= 1;
                   level--
                 )

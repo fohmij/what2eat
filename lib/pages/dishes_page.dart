@@ -2,44 +2,93 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 
 import 'package:what2eat/models/dish.dart';
-import 'package:what2eat/models/dish_group.dart';
 
 class DishesPage extends StatelessWidget {
   final List<Dish> dishes;
-  final DishGroup? group;
   final Function(Dish) onTap;
   final Function(Dish) onDelete;
   final Function(Dish) onEdit;
   final Future<bool> Function(Dish) onConfirmDelete;
   final VoidCallback onAdd;
+  final List<String> allTags;
+  final Set<String> activeTags;
+  final ValueChanged<String> onTagToggled;
 
   const DishesPage({
     super.key,
     required this.dishes,
-    this.group,
     required this.onTap,
     required this.onDelete,
     required this.onEdit,
     required this.onConfirmDelete,
     required this.onAdd,
+    required this.allTags,
+    required this.activeTags,
+    required this.onTagToggled,
   });
 
   @override
   Widget build(BuildContext context) {
-    final filteredDishes = group != null
-        ? dishes.where((dish) => group!.dishIds.contains(dish.id)).toList()
-        : dishes;
+    final filteredDishes = dishes.where((dish) {
+      if (activeTags.isEmpty) return true;
+
+      return activeTags.every((tag) => dish.tags.contains(tag));
+    }).toList();
     return Stack(
       children: [
         Column(
           children: [
+            SizedBox(
+              height: 45,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                children: [
+                  const SizedBox(width: 4),
+
+                  FilterChip(
+                    label: const Text('Alle'),
+                    selected: activeTags.isEmpty,
+                    showCheckmark: false,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    onSelected: (_) {
+                      onTagToggled('__clear__'); // Trick
+                    },
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  // 🔹 Tags
+                  ...allTags.map((tag) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(tag),
+                        selected: activeTags.contains(tag),
+                        showCheckmark: false,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        onSelected: (selected) {
+                          onTagToggled(tag);
+                        },
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
             Expanded(
               child: filteredDishes.isEmpty
                   ? Center(
                       child: Text(
-                        group != null
-                            ? 'Keine Gerichte in dieser Gruppe. Tippe auf +, um eins hinzuzufügen.'
-                            : 'Keine Gerichte vorhanden. Tippe auf +, um eins hinzuzufügen.',
+                        'Keine Gerichte vorhanden. \nTippe auf +, um eins hinzuzufügen.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
@@ -67,7 +116,7 @@ class DishesPage extends StatelessWidget {
                           child: Card(
                             color:
                                 Theme.of(context).brightness == Brightness.light
-                                ? const Color.fromARGB(255, 210, 214, 211)
+                                ? Colors.white
                                 : const Color.fromARGB(255, 50, 50, 60),
                             margin: const EdgeInsets.only(bottom: 12),
                             shape: RoundedRectangleBorder(
@@ -102,55 +151,28 @@ class DishesPage extends StatelessWidget {
                                             dish.imageUrl,
                                             fit: BoxFit.cover,
                                             errorBuilder:
-                                                (context, error, stackTrace) =>
-                                                    Container(
+                                                (
+                                                  context,
+                                                  error,
+                                                  stackTrace,
+                                                ) => Container(
+                                                  color:
+                                                      Theme.of( context,).brightness == Brightness.light
+                                                      ? Colors.white
+                                                      : const Color.fromARGB(255, 50, 50, 60,),
+                                                  child: Center(
+                                                    child: Icon(
+                                                      Icons.broken_image,
                                                       color:
-                                                          Colors.grey.shade300,
-                                                      child: const Center(
-                                                        child: Icon(
-                                                          Icons.broken_image,
-                                                          size: 60,
-                                                        ),
-                                                      ),
+                                                          Theme.of( context,).brightness == Brightness.light
+                                                          ? Colors.black
+                                                          : Theme.of(context).colorScheme.surface,
+                                                      size: 60,
                                                     ),
+                                                  ),
+                                                ),
                                           ),
                                         ),
-                                  // child:
-                                  //                           if (dish.localimagepath != null &&
-                                  //                               file(dish.localimagepath!).existssync())
-                                  //                             cliprrect(
-                                  //                               borderradius: const borderradius.vertical(
-                                  //                                 top: radius.circular(16),
-                                  //                               ),
-                                  //                               child: image.file(
-                                  //                                 file(dish.localimagepath!),
-                                  //                                 height: 180,
-                                  //                                 fit: boxfit.cover,
-                                  //                               ),
-                                  //                             )
-                                  //                           else
-                                  //                             cliprrect(
-                                  //                               borderradius: const borderradius.vertical(
-                                  //                                 top: radius.circular(16),
-                                  //                               ),
-                                  //                               child: image.network(
-                                  //                                 dish.imageurl,
-                                  //                                 height: 180,
-                                  //                                 fit: boxfit.cover,
-                                  //                                 errorbuilder:
-                                  //                                     (context, error, stacktrace) =>
-                                  //                                         container(
-                                  //                                           height: 180,
-                                  //                                           color: colors.grey.shade300,
-                                  //                                           child: const center(
-                                  //                                             child: icon(
-                                  //                                               icons.broken_image,
-                                  //                                               size: 60,
-                                  //                                             ),
-                                  //                                           ),
-                                  //                                         ),
-                                  //                               ),
-                                  //                             ),
                                 ),
                                 Expanded(
                                   flex: 3,
