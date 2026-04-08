@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 
 import 'package:what2eat/models/dish.dart';
+import 'package:what2eat/models/dish_group.dart';
 
 class DishesPage extends StatelessWidget {
   final List<Dish> dishes;
+  final DishGroup? group;
   final Function(Dish) onTap;
   final Function(Dish) onDelete;
   final Function(Dish) onEdit;
@@ -14,6 +16,7 @@ class DishesPage extends StatelessWidget {
   const DishesPage({
     super.key,
     required this.dishes,
+    this.group,
     required this.onTap,
     required this.onDelete,
     required this.onEdit,
@@ -23,15 +26,20 @@ class DishesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final filteredDishes = group != null
+        ? dishes.where((dish) => group!.dishIds.contains(dish.id)).toList()
+        : dishes;
     return Stack(
       children: [
         Column(
           children: [
             Expanded(
-              child: dishes.isEmpty
+              child: filteredDishes.isEmpty
                   ? Center(
                       child: Text(
-                        'Keine Gerichte vorhanden. Tippe auf +, um eins hinzuzufügen.',
+                        group != null
+                            ? 'Keine Gerichte in dieser Gruppe. Tippe auf +, um eins hinzuzufügen.'
+                            : 'Keine Gerichte vorhanden. Tippe auf +, um eins hinzuzufügen.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
@@ -44,7 +52,7 @@ class DishesPage extends StatelessWidget {
                             mainAxisSpacing: 0,
                             childAspectRatio: 0.65,
                           ),
-                      itemCount: dishes.length,
+                      itemCount: filteredDishes.length,
                       padding: const EdgeInsets.only(
                         left: 16,
                         right: 16,
@@ -52,7 +60,7 @@ class DishesPage extends StatelessWidget {
                         bottom: 80,
                       ),
                       itemBuilder: (context, index) {
-                        final dish = dishes[index];
+                        final dish = filteredDishes[index];
                         return InkWell(
                           borderRadius: BorderRadius.circular(16),
                           onTap: () => onTap(dish),
