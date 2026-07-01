@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:what2eat/pages/dishes_page.dart';
@@ -9,6 +8,8 @@ import 'package:what2eat/pages/swipe_page.dart';
 import 'package:what2eat/pages/settings_page.dart';
 import 'package:what2eat/models/dish.dart';
 import 'package:what2eat/theme/app_theme.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 class What2EatApp extends StatefulWidget {
   const What2EatApp({super.key});
@@ -166,12 +167,27 @@ class _MetaHomePageState extends State<MetaHomePage> {
       maxWidth: 1200,
       maxHeight: 1200,
     );
-    if (picked != null) {
-      setModalState(() {
-        _selectedImagePath = picked.path;
-        _imageUrlController.clear();
-      });
+
+    if (picked == null) return;
+
+    final appDir = await getApplicationDocumentsDirectory();
+
+    final imagesDir = Directory('${appDir.path}/images');
+    if (!await imagesDir.exists()) {
+      await imagesDir.create(recursive: true);
     }
+
+    final fileName =
+        '${DateTime.now().microsecondsSinceEpoch}${p.extension(picked.path)}';
+
+    final savedImage = await File(
+      picked.path,
+    ).copy('${imagesDir.path}/$fileName');
+
+    setModalState(() {
+      _selectedImagePath = savedImage.path;
+      _imageUrlController.clear();
+    });
   }
 
   void _prepareDishForm([Dish? dish]) {
@@ -183,7 +199,12 @@ class _MetaHomePageState extends State<MetaHomePage> {
           ? dish.imageUrl
           : '';
       _descriptionController.text = dish.description;
-      _selectedImagePath = dish.localImagePath;
+      if (dish.localImagePath != null &&
+          File(dish.localImagePath!).existsSync()) {
+        _selectedImagePath = dish.localImagePath;
+      } else {
+        _selectedImagePath = null;
+      }
       _selectedTags.addAll(dish.tags);
     } else {
       _titleController.clear();
@@ -401,10 +422,9 @@ class _MetaHomePageState extends State<MetaHomePage> {
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       height: 220,
-                      color: 
-                                                          Theme.of( context,).brightness == Brightness.light
-                                                          ? Colors.white
-                                                          : Theme.of(context).colorScheme.surface,
+                      color: Theme.of(context).brightness == Brightness.light
+                          ? Colors.white
+                          : Theme.of(context).colorScheme.surface,
                       child: const Center(
                         child: Icon(Icons.broken_image, size: 60),
                       ),
@@ -673,7 +693,9 @@ class _MetaHomePageState extends State<MetaHomePage> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: _selectedImagePath != null
+                    child:
+                        _selectedImagePath != null &&
+                            File(_selectedImagePath!).existsSync()
                         ? Image.file(
                             File(_selectedImagePath!),
                             height: 200,
@@ -943,10 +965,10 @@ class _MetaHomePageState extends State<MetaHomePage> {
   @override
   Widget build(BuildContext context) {
     final filteredDishes = _activeTags.isEmpty
-    ? _dishes
-    : _dishes.where((dish) {
-        return _activeTags.every((tag) => dish.tags.contains(tag));
-      }).toList();
+        ? _dishes
+        : _dishes.where((dish) {
+            return _activeTags.every((tag) => dish.tags.contains(tag));
+          }).toList();
 
     final pages = <Widget>[
       DishesPage(
