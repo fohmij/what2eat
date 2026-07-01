@@ -11,6 +11,165 @@ import 'package:what2eat/theme/app_theme.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+class _FormattedDescriptionLine {
+  const _FormattedDescriptionLine({required this.text, required this.isBullet});
+
+  final String text;
+  final bool isBullet;
+}
+
+Widget _buildFormattedDishDescription(
+  BuildContext context,
+  String description, {
+  TextStyle? style,
+  TextStyle? emptyStyle,
+}) {
+  final baseStyle = style ?? Theme.of(context).textTheme.bodyLarge;
+
+  if (description.trim().isEmpty) {
+    return Text(
+      'Keine Beschreibung vorhanden',
+      style: emptyStyle ?? baseStyle?.copyWith(color: Colors.grey.shade600),
+    );
+  }
+
+  final descriptionLines = _parseFormattedDescription(description);
+
+  if (descriptionLines.length == 1 && !descriptionLines.first.isBullet) {
+    return Text.rich(
+      TextSpan(
+        style: baseStyle,
+        children: _buildFormattedTextSpans(
+          descriptionLines.first.text,
+          baseStyle,
+        ),
+      ),
+    );
+  }
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: descriptionLines.map((line) {
+      if (!line.isBullet) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text.rich(
+            TextSpan(
+              style: baseStyle,
+              children: _buildFormattedTextSpans(line.text, baseStyle),
+            ),
+          ),
+        );
+      }
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('• ', style: baseStyle),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  style: baseStyle,
+                  children: _buildFormattedTextSpans(line.text, baseStyle),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList(),
+  );
+}
+
+List<_FormattedDescriptionLine> _parseFormattedDescription(String description) {
+  final normalizedDescription = description
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\r', '\n');
+
+  final hyphenBulletPattern = RegExp(r'^\s*[-–—]\s*(.+)$');
+  final rawLines = normalizedDescription.split('\n');
+  final hasHyphenBullets = rawLines.any(
+    (line) => hyphenBulletPattern.hasMatch(line.trim()),
+  );
+
+  if (hasHyphenBullets) {
+    return rawLines
+        .map((line) {
+          final trimmedLine = line.trim();
+          if (trimmedLine.isEmpty) return null;
+
+          final bulletMatch = hyphenBulletPattern.firstMatch(trimmedLine);
+          if (bulletMatch != null) {
+            return _FormattedDescriptionLine(
+              text: bulletMatch.group(1)!.trim(),
+              isBullet: true,
+            );
+          }
+
+          return _FormattedDescriptionLine(text: trimmedLine, isBullet: false);
+        })
+        .whereType<_FormattedDescriptionLine>()
+        .toList();
+  }
+
+  final semicolonItems = normalizedDescription
+      .split(';')
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
+
+  if (semicolonItems.length > 1) {
+    return semicolonItems
+        .map((item) => _FormattedDescriptionLine(text: item, isBullet: true))
+        .toList();
+  }
+
+  return [
+    _FormattedDescriptionLine(
+      text: normalizedDescription.trim(),
+      isBullet: false,
+    ),
+  ];
+}
+
+List<TextSpan> _buildFormattedTextSpans(String text, TextStyle? baseStyle) {
+  final spans = <TextSpan>[];
+  final pattern = RegExp(r'(\*[^*\n]+\*|_[^_\n]+_)');
+  var currentIndex = 0;
+
+  for (final match in pattern.allMatches(text)) {
+    if (match.start > currentIndex) {
+      spans.add(TextSpan(text: text.substring(currentIndex, match.start)));
+    }
+
+    final token = match.group(0)!;
+    final content = token.substring(1, token.length - 1);
+    final isBold = token.startsWith('*');
+
+    final formattedStyle = baseStyle == null
+        ? TextStyle(
+            fontWeight: isBold ? FontWeight.bold : null,
+            fontStyle: isBold ? null : FontStyle.italic,
+          )
+        : baseStyle.copyWith(
+            fontWeight: isBold ? FontWeight.bold : baseStyle.fontWeight,
+            fontStyle: isBold ? baseStyle.fontStyle : FontStyle.italic,
+          );
+
+    spans.add(TextSpan(text: content, style: formattedStyle));
+
+    currentIndex = match.end;
+  }
+
+  if (currentIndex < text.length) {
+    spans.add(TextSpan(text: text.substring(currentIndex)));
+  }
+
+  return spans;
+}
+
 class What2EatApp extends StatefulWidget {
   const What2EatApp({super.key});
 
@@ -78,6 +237,8 @@ class _MetaHomePageState extends State<MetaHomePage> {
   bool _isSwipeCardFlipped = false;
   double _swipeVerticalOffset = 0.0;
   bool _isRejecting = false;
+  bool _isDishSearchVisible = false;
+  String _dishSearchQuery = '';
   final Set<String> _activeTags = {};
 
   bool get isOnSwipePage => _selectedIndex == 1;
@@ -192,6 +353,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
 
   void _prepareDishForm([Dish? dish]) {
     _editingDish = dish;
+    _selectedTags.clear();
     _isEditing = dish != null;
     if (dish != null) {
       _titleController.text = dish.title;
@@ -345,135 +507,149 @@ class _MetaHomePageState extends State<MetaHomePage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14.0),
-                child: Container(
-                  height: 4,
-                  width: 48,
-                  decoration: BoxDecoration(
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14.0),
+                    child: Container(
+                      height: 4,
+                      width: 48,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.light
+                            ? Colors.grey
+                            : const Color.fromARGB(255, 75, 75, 75),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    dish.title,
+                    style: TextStyle(
+                      fontSize: 24,
+                      // fontWeight: FontWeight.w400
+                    ),
+                  ),
+                  Divider(
+                    height: 16,
+                    thickness: 1,
                     color: Theme.of(context).brightness == Brightness.light
                         ? Colors.grey
                         : const Color.fromARGB(255, 75, 75, 75),
-                    borderRadius: BorderRadius.circular(4),
                   ),
-                ),
-              ),
-              Text(
-                dish.title,
-                style: TextStyle(
-                  fontSize: 24,
-                  // fontWeight: FontWeight.w400
-                ),
-              ),
-              Divider(
-                height: 16,
-                thickness: 1,
-                color: Theme.of(context).brightness == Brightness.light
-                    ? Colors.grey
-                    : const Color.fromARGB(255, 75, 75, 75),
-              ),
-              if (dish.tags.isNotEmpty) ...[
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: dish.tags.map((tag) {
-                      return Chip(
-                        backgroundColor: Color.fromARGB(
-                          255,
-                          0,
-                          255,
-                          8,
-                        ).withAlpha(70),
-                        label: Text(tag),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ] else ...[
-                const SizedBox(height: 12),
-              ],
-              if (dish.localImagePath != null &&
-                  File(dish.localImagePath!).existsSync())
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.file(
-                    File(dish.localImagePath!),
-                    width: double.infinity,
-                    height: 220,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              else
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    dish.imageUrl,
-                    width: double.infinity,
-                    height: 220,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 220,
-                      color: Theme.of(context).brightness == Brightness.light
-                          ? Colors.white
-                          : Theme.of(context).colorScheme.surface,
-                      child: const Center(
-                        child: Icon(Icons.broken_image, size: 60),
+                  if (dish.tags.isNotEmpty) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: dish.tags.map((tag) {
+                          return Chip(
+                            backgroundColor: Color.fromARGB(
+                              255,
+                              0,
+                              255,
+                              8,
+                            ).withAlpha(70),
+                            label: Text(tag),
+                          );
+                        }).toList(),
                       ),
                     ),
-                  ),
-                ),
-              if (dish.description.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  dish.description,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-              ],
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.error,
-                        foregroundColor: Colors.white,
+                    const SizedBox(height: 8),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                  ],
+                  if (dish.localImagePath != null &&
+                      File(dish.localImagePath!).existsSync())
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.file(
+                        File(dish.localImagePath!),
+                        width: double.infinity,
+                        height: 220,
+                        fit: BoxFit.cover,
                       ),
-                      onPressed: () async {
-                        final navigator = Navigator.of(context);
-                        final confirmed = await _confirmDelete(dish);
-                        if (confirmed) {
-                          navigator.pop();
-                          await _removeDish(dish);
-                        }
-                      },
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('Löschen'),
+                    )
+                  else
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        dish.imageUrl,
+                        width: double.infinity,
+                        height: 220,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 220,
+                          color:
+                              Theme.of(context).brightness == Brightness.light
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.surface,
+                          child: const Center(
+                            child: Icon(Icons.broken_image, size: 60),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _showDishDialog(dish);
-                      },
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('Bearbeiten'),
+                  if (dish.description.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _buildFormattedDishDescription(
+                          context,
+                          dish.description,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                      ),
                     ),
+                  ],
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.error,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () async {
+                            final navigator = Navigator.of(context);
+                            final confirmed = await _confirmDelete(dish);
+                            if (confirmed) {
+                              navigator.pop();
+                              await _removeDish(dish);
+                            }
+                          },
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Löschen'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            _showDishDialog(dish);
+                          },
+                          icon: const Icon(Icons.edit_outlined),
+                          label: const Text('Bearbeiten'),
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 72),
                 ],
               ),
-              const SizedBox(height: 72),
-            ],
+            ),
           ),
         );
       },
@@ -606,6 +782,7 @@ class _MetaHomePageState extends State<MetaHomePage> {
   }
 
   Widget _buildAddDishForm(void Function(void Function()) setModalState) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Form(
@@ -746,8 +923,8 @@ class _MetaHomePageState extends State<MetaHomePage> {
                   },
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(
-                      color: Color.fromARGB(255, 100, 100, 100),
+                    side: BorderSide(
+                      color: isDark ? AppTheme.grey600 : AppTheme.grey200,
                       width: 1,
                     ),
                   ),
@@ -802,7 +979,8 @@ class _MetaHomePageState extends State<MetaHomePage> {
                 border: OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
-              maxLines: 4,
+              minLines: 4,
+              maxLines: 10,
             ),
             const SizedBox(height: 24),
             Container(
@@ -860,6 +1038,9 @@ class _MetaHomePageState extends State<MetaHomePage> {
               onDestinationSelected: (int index) {
                 setState(() {
                   _selectedIndex = index == 1 ? 2 : 0;
+                  if (_selectedIndex != 0) {
+                    _isDishSearchVisible = false;
+                  }
                 });
               },
               destinations: [
@@ -919,7 +1100,10 @@ class _MetaHomePageState extends State<MetaHomePage> {
                         _resetSwipeStack();
                       } else {
                         // 🔄 wechseln zur Swipe-Seite
-                        setState(() => _selectedIndex = 1);
+                        setState(() {
+                          _selectedIndex = 1;
+                          _isDishSearchVisible = false;
+                        });
                       }
                     },
                     child: Container(
@@ -973,6 +1157,8 @@ class _MetaHomePageState extends State<MetaHomePage> {
     final pages = <Widget>[
       DishesPage(
         dishes: _dishes,
+        isSearchVisible: _isDishSearchVisible,
+        searchQuery: _dishSearchQuery,
         onTap: _showDishDetail,
         onDelete: _removeDish,
         onEdit: _showDishDialog,
@@ -980,6 +1166,16 @@ class _MetaHomePageState extends State<MetaHomePage> {
         onAdd: () => _showDishDialog(),
         allTags: _allTags,
         activeTags: _activeTags,
+        onSearchChanged: (value) {
+          setState(() {
+            _dishSearchQuery = value;
+          });
+        },
+        onSearchCleared: () {
+          setState(() {
+            _dishSearchQuery = '';
+          });
+        },
         onTagToggled: (tag) {
           setState(() {
             if (tag == '__clear__') {
@@ -1062,6 +1258,29 @@ class _MetaHomePageState extends State<MetaHomePage> {
             ? const Color.fromARGB(255, 210, 214, 211)
             : const Color.fromARGB(255, 50, 50, 60),
         centerTitle: false,
+        actions: _selectedIndex == 0
+            ? [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: IconButton(
+                    tooltip: _isDishSearchVisible
+                        ? 'Suche schließen'
+                        : 'Suchen',
+                    icon: Icon(
+                      _isDishSearchVisible ? Icons.close : Icons.search,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        if (_isDishSearchVisible) {
+                          _dishSearchQuery = '';
+                        }
+                        _isDishSearchVisible = !_isDishSearchVisible;
+                      });
+                    },
+                  ),
+                ),
+              ]
+            : null,
         flexibleSpace: Row(
           children: [
             Expanded(
@@ -1074,7 +1293,12 @@ class _MetaHomePageState extends State<MetaHomePage> {
             ),
             Expanded(
               child: InkWell(
-                onTap: () => setState(() => _selectedIndex = 2),
+                onTap: () {
+                  setState(() {
+                    _selectedIndex = 2;
+                    _isDishSearchVisible = false;
+                  });
+                },
                 splashColor: Colors.white24,
                 highlightColor: Colors.transparent,
                 child: Container(color: Colors.transparent),

@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
+  static const grey50 = Color.fromARGB(255, 250, 250, 250);
+  static const grey100 = Color.fromARGB(255, 230, 230, 230);
+  static const grey200 = Color.fromARGB( 255, 202, 202, 202,); // bereits verwendet
+  static const grey300 = Color.fromARGB(255, 180, 180, 180);
+  static const grey400 = Color.fromARGB( 255, 161, 161, 161,); // bereits verwendet
+  static const grey500 = Color.fromARGB(255, 128, 128, 128);
+  static const grey600 = Color.fromARGB( 255, 100, 100, 100,); // bereits verwendet
+  static const grey700 = Color.fromARGB(255, 75, 75, 75); // bereits verwendet
+  static const grey800 = Color.fromARGB(255, 65, 65, 65); // bereits verwendet
+  static const grey900 = Color.fromARGB(255, 50, 50, 60); // bereits verwendet
   static ThemeData light = ThemeData(
     useMaterial3: true,
     colorScheme: const ColorScheme(
@@ -51,7 +61,7 @@ class AppTheme {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(7),
         borderSide: BorderSide(
-          color: Color.fromARGB(255, 75, 176, 80), 
+          color: Color.fromARGB(255, 75, 176, 80),
           width: 2,
         ),
       ),

@@ -4,6 +4,181 @@ import 'dart:math';
 
 import 'package:what2eat/models/dish.dart';
 
+class _FormattedDescriptionLine {
+  const _FormattedDescriptionLine({
+    required this.text,
+    required this.isBullet,
+  });
+
+  final String text;
+  final bool isBullet;
+}
+
+Widget _buildFormattedDishDescription(
+  BuildContext context,
+  String description, {
+  TextStyle? style,
+  TextStyle? emptyStyle,
+}) {
+  final baseStyle = style ?? Theme.of(context).textTheme.bodyLarge;
+
+  if (description.trim().isEmpty) {
+    return Text(
+      'Keine Beschreibung vorhanden',
+      style: emptyStyle ?? baseStyle?.copyWith(color: Colors.grey.shade600),
+    );
+  }
+
+  final descriptionLines = _parseFormattedDescription(description);
+
+  if (descriptionLines.length == 1 && !descriptionLines.first.isBullet) {
+    return Text.rich(
+      TextSpan(
+        style: baseStyle,
+        children: _buildFormattedTextSpans(
+          descriptionLines.first.text,
+          baseStyle,
+        ),
+      ),
+    );
+  }
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: descriptionLines.map((line) {
+      if (!line.isBullet) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text.rich(
+            TextSpan(
+              style: baseStyle,
+              children: _buildFormattedTextSpans(line.text, baseStyle),
+            ),
+          ),
+        );
+      }
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('• ', style: baseStyle),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  style: baseStyle,
+                  children: _buildFormattedTextSpans(line.text, baseStyle),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList(),
+  );
+}
+
+List<_FormattedDescriptionLine> _parseFormattedDescription(String description) {
+  final normalizedDescription = description
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\r', '\n');
+
+  final hyphenBulletPattern = RegExp(r'^\s*[-–—]\s*(.+)$');
+  final rawLines = normalizedDescription.split('\n');
+  final hasHyphenBullets = rawLines.any(
+    (line) => hyphenBulletPattern.hasMatch(line.trim()),
+  );
+
+  if (hasHyphenBullets) {
+    return rawLines
+        .map((line) {
+          final trimmedLine = line.trim();
+          if (trimmedLine.isEmpty) return null;
+
+          final bulletMatch = hyphenBulletPattern.firstMatch(trimmedLine);
+          if (bulletMatch != null) {
+            return _FormattedDescriptionLine(
+              text: bulletMatch.group(1)!.trim(),
+              isBullet: true,
+            );
+          }
+
+          return _FormattedDescriptionLine(
+            text: trimmedLine,
+            isBullet: false,
+          );
+        })
+        .whereType<_FormattedDescriptionLine>()
+        .toList();
+  }
+
+  final semicolonItems = normalizedDescription
+      .split(';')
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
+
+  if (semicolonItems.length > 1) {
+    return semicolonItems
+        .map(
+          (item) => _FormattedDescriptionLine(
+            text: item,
+            isBullet: true,
+          ),
+        )
+        .toList();
+  }
+
+  return [
+    _FormattedDescriptionLine(
+      text: normalizedDescription.trim(),
+      isBullet: false,
+    ),
+  ];
+}
+
+List<TextSpan> _buildFormattedTextSpans(String text, TextStyle? baseStyle) {
+  final spans = <TextSpan>[];
+  final pattern = RegExp(r'(\*[^*\n]+\*|_[^_\n]+_)');
+  var currentIndex = 0;
+
+  for (final match in pattern.allMatches(text)) {
+    if (match.start > currentIndex) {
+      spans.add(TextSpan(text: text.substring(currentIndex, match.start)));
+    }
+
+    final token = match.group(0)!;
+    final content = token.substring(1, token.length - 1);
+    final isBold = token.startsWith('*');
+
+    final formattedStyle = baseStyle == null
+        ? TextStyle(
+            fontWeight: isBold ? FontWeight.bold : null,
+            fontStyle: isBold ? null : FontStyle.italic,
+          )
+        : baseStyle.copyWith(
+            fontWeight: isBold ? FontWeight.bold : baseStyle.fontWeight,
+            fontStyle: isBold ? baseStyle.fontStyle : FontStyle.italic,
+          );
+
+    spans.add(
+      TextSpan(
+        text: content,
+        style: formattedStyle,
+      ),
+    );
+
+    currentIndex = match.end;
+  }
+
+  if (currentIndex < text.length) {
+    spans.add(TextSpan(text: text.substring(currentIndex)));
+  }
+
+  return spans;
+}
+
 class SwipePage extends StatelessWidget {
   final List<Dish> dishes;
   final int swipeIndex;
@@ -297,15 +472,13 @@ class SwipePage extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: SingleChildScrollView(
-                child: Text(
-                  dish.description.isNotEmpty
-                      ? dish.description
-                      : 'Keine Beschreibung vorhanden',
-                  style: TextStyle(
+                child: _buildFormattedDishDescription(
+                  context,
+                  dish.description,
+                  style: const TextStyle(fontSize: 16),
+                  emptyStyle: TextStyle(
                     fontSize: 16,
-                    color: dish.description.isNotEmpty
-                        ? null
-                        : Colors.grey.shade600,
+                    color: Colors.grey.shade600,
                   ),
                 ),
               ),
