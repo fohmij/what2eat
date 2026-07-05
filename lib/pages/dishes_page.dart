@@ -277,13 +277,13 @@ class _DishesPageState extends State<DishesPage> {
                                         ),
                                 ),
                                 Expanded(
-                                  flex: 3,
+                                  flex: 4,
                                   child: Padding(
                                     padding: const EdgeInsets.only(
                                       top: 8,
                                       right: 12,
                                       left: 12,
-                                      bottom: 0,
+                                      bottom: 8,
                                     ),
                                     child: Text(
                                       dish.title,

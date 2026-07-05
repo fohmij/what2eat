@@ -1213,6 +1213,16 @@ class _MetaHomePageState extends State<MetaHomePage> {
         isRejecting: _isRejecting,
         onReset: _resetSwipeStack,
         onRejectSwipe: _rejectSwipe,
+        onPreviousDish: () {
+          setState(() {
+            if (_swipeIndex > 0) {
+              _swipeIndex--;
+              _isSwipeCardFlipped = false;
+              _swipeVerticalOffset = 0;
+              _isRejecting = false;
+            }
+          });
+        },
         onFlipCard: () {
           setState(() {
             _isSwipeCardFlipped = !_isSwipeCardFlipped;

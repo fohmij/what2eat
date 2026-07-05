@@ -5,10 +5,7 @@ import 'dart:math';
 import 'package:what2eat/models/dish.dart';
 
 class _FormattedDescriptionLine {
-  const _FormattedDescriptionLine({
-    required this.text,
-    required this.isBullet,
-  });
+  const _FormattedDescriptionLine({required this.text, required this.isBullet});
 
   final String text;
   final bool isBullet;
@@ -104,10 +101,7 @@ List<_FormattedDescriptionLine> _parseFormattedDescription(String description) {
             );
           }
 
-          return _FormattedDescriptionLine(
-            text: trimmedLine,
-            isBullet: false,
-          );
+          return _FormattedDescriptionLine(text: trimmedLine, isBullet: false);
         })
         .whereType<_FormattedDescriptionLine>()
         .toList();
@@ -121,12 +115,7 @@ List<_FormattedDescriptionLine> _parseFormattedDescription(String description) {
 
   if (semicolonItems.length > 1) {
     return semicolonItems
-        .map(
-          (item) => _FormattedDescriptionLine(
-            text: item,
-            isBullet: true,
-          ),
-        )
+        .map((item) => _FormattedDescriptionLine(text: item, isBullet: true))
         .toList();
   }
 
@@ -162,12 +151,7 @@ List<TextSpan> _buildFormattedTextSpans(String text, TextStyle? baseStyle) {
             fontStyle: isBold ? baseStyle.fontStyle : FontStyle.italic,
           );
 
-    spans.add(
-      TextSpan(
-        text: content,
-        style: formattedStyle,
-      ),
-    );
+    spans.add(TextSpan(text: content, style: formattedStyle));
 
     currentIndex = match.end;
   }
@@ -189,6 +173,7 @@ class SwipePage extends StatelessWidget {
 
   final VoidCallback onReset;
   final Function({bool animate}) onRejectSwipe;
+  final VoidCallback onPreviousDish;
   final VoidCallback onFlipCard;
   final Function(double) onVerticalDragUpdate;
   final Function(DragEndDetails) onVerticalDragEnd;
@@ -207,6 +192,7 @@ class SwipePage extends StatelessWidget {
     required this.isRejecting,
     required this.onReset,
     required this.onRejectSwipe,
+    required this.onPreviousDish,
     required this.onFlipCard,
     required this.onVerticalDragUpdate,
     required this.onVerticalDragEnd,
@@ -280,7 +266,7 @@ class SwipePage extends StatelessWidget {
               } else if (swipeVerticalOffset > 80 ||
                   details.velocity.pixelsPerSecond.dy > 500) {
                 // 🔻 nach unten → reset
-                onReset();
+                onPreviousDish();
               } else {
                 // zurück in Mitte
                 onVerticalDragEnd(details);
@@ -544,15 +530,13 @@ class SwipePage extends StatelessWidget {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-
                 FilterChip(
                   label: const Text('Alle'),
                   selected: activeTags.isEmpty,
                   onSelected: (_) => onTagToggled('__clear__'),
                   showCheckmark: false,
-                  visualDensity: VisualDensity.compact, 
-                  materialTapTargetSize:
-                      MaterialTapTargetSize.shrinkWrap, 
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
 
                 const SizedBox(width: 8),
@@ -565,9 +549,8 @@ class SwipePage extends StatelessWidget {
                       showCheckmark: false,
                       selected: activeTags.contains(tag),
                       onSelected: (_) => onTagToggled(tag),
-                  visualDensity: VisualDensity.compact, 
-                  materialTapTargetSize:
-                      MaterialTapTargetSize.shrinkWrap, 
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   );
                 }),
