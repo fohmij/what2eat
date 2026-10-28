@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:what2eat/pages/dish_detail_page.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -10,165 +11,6 @@ import 'package:what2eat/models/dish.dart';
 import 'package:what2eat/theme/app_theme.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-
-class _FormattedDescriptionLine {
-  const _FormattedDescriptionLine({required this.text, required this.isBullet});
-
-  final String text;
-  final bool isBullet;
-}
-
-Widget _buildFormattedDishDescription(
-  BuildContext context,
-  String description, {
-  TextStyle? style,
-  TextStyle? emptyStyle,
-}) {
-  final baseStyle = style ?? Theme.of(context).textTheme.bodyLarge;
-
-  if (description.trim().isEmpty) {
-    return Text(
-      'Keine Beschreibung vorhanden',
-      style: emptyStyle ?? baseStyle?.copyWith(color: Colors.grey.shade600),
-    );
-  }
-
-  final descriptionLines = _parseFormattedDescription(description);
-
-  if (descriptionLines.length == 1 && !descriptionLines.first.isBullet) {
-    return Text.rich(
-      TextSpan(
-        style: baseStyle,
-        children: _buildFormattedTextSpans(
-          descriptionLines.first.text,
-          baseStyle,
-        ),
-      ),
-    );
-  }
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: descriptionLines.map((line) {
-      if (!line.isBullet) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text.rich(
-            TextSpan(
-              style: baseStyle,
-              children: _buildFormattedTextSpans(line.text, baseStyle),
-            ),
-          ),
-        );
-      }
-
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('• ', style: baseStyle),
-            Expanded(
-              child: Text.rich(
-                TextSpan(
-                  style: baseStyle,
-                  children: _buildFormattedTextSpans(line.text, baseStyle),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }).toList(),
-  );
-}
-
-List<_FormattedDescriptionLine> _parseFormattedDescription(String description) {
-  final normalizedDescription = description
-      .replaceAll('\r\n', '\n')
-      .replaceAll('\r', '\n');
-
-  final hyphenBulletPattern = RegExp(r'^\s*[-–—]\s*(.+)$');
-  final rawLines = normalizedDescription.split('\n');
-  final hasHyphenBullets = rawLines.any(
-    (line) => hyphenBulletPattern.hasMatch(line.trim()),
-  );
-
-  if (hasHyphenBullets) {
-    return rawLines
-        .map((line) {
-          final trimmedLine = line.trim();
-          if (trimmedLine.isEmpty) return null;
-
-          final bulletMatch = hyphenBulletPattern.firstMatch(trimmedLine);
-          if (bulletMatch != null) {
-            return _FormattedDescriptionLine(
-              text: bulletMatch.group(1)!.trim(),
-              isBullet: true,
-            );
-          }
-
-          return _FormattedDescriptionLine(text: trimmedLine, isBullet: false);
-        })
-        .whereType<_FormattedDescriptionLine>()
-        .toList();
-  }
-
-  final semicolonItems = normalizedDescription
-      .split(';')
-      .map((item) => item.trim())
-      .where((item) => item.isNotEmpty)
-      .toList();
-
-  if (semicolonItems.length > 1) {
-    return semicolonItems
-        .map((item) => _FormattedDescriptionLine(text: item, isBullet: true))
-        .toList();
-  }
-
-  return [
-    _FormattedDescriptionLine(
-      text: normalizedDescription.trim(),
-      isBullet: false,
-    ),
-  ];
-}
-
-List<TextSpan> _buildFormattedTextSpans(String text, TextStyle? baseStyle) {
-  final spans = <TextSpan>[];
-  final pattern = RegExp(r'(\*[^*\n]+\*|_[^_\n]+_)');
-  var currentIndex = 0;
-
-  for (final match in pattern.allMatches(text)) {
-    if (match.start > currentIndex) {
-      spans.add(TextSpan(text: text.substring(currentIndex, match.start)));
-    }
-
-    final token = match.group(0)!;
-    final content = token.substring(1, token.length - 1);
-    final isBold = token.startsWith('*');
-
-    final formattedStyle = baseStyle == null
-        ? TextStyle(
-            fontWeight: isBold ? FontWeight.bold : null,
-            fontStyle: isBold ? null : FontStyle.italic,
-          )
-        : baseStyle.copyWith(
-            fontWeight: isBold ? FontWeight.bold : baseStyle.fontWeight,
-            fontStyle: isBold ? baseStyle.fontStyle : FontStyle.italic,
-          );
-
-    spans.add(TextSpan(text: content, style: formattedStyle));
-
-    currentIndex = match.end;
-  }
-
-  if (currentIndex < text.length) {
-    spans.add(TextSpan(text: text.substring(currentIndex)));
-  }
-
-  return spans;
-}
 
 class What2EatApp extends StatefulWidget {
   const What2EatApp({super.key});
@@ -500,160 +342,31 @@ class _MetaHomePageState extends State<MetaHomePage> {
   }
 
   Future<void> _showDishDetail(Dish dish) async {
-    await showModalBottomSheet<void>(
+    // Use a real DraggableScrollableSheet with ONE scroll controller.
+    // A vertical swipe first resizes the sheet. Only when fully extended
+    // can oversized content scroll within the same CustomScrollView.
+    final result = await showModalBottomSheet<DishDetailResult>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      showDragHandle: false,
+      // Don't let the modal route compete for the same vertical drag.
+      enableDrag: false,
+      // Dismiss only by dragging the sheet down or using Android Back.
+      isDismissible: false,
+      builder: (_) => DishDetailSheet(
+        dish: dish,
+        onConfirmDelete: _confirmDelete,
+        onDelete: _removeDish,
       ),
-      builder: (context) {
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14.0),
-                    child: Container(
-                      height: 4,
-                      width: 48,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.light
-                            ? Colors.grey
-                            : const Color.fromARGB(255, 75, 75, 75),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    dish.title,
-                    style: TextStyle(
-                      fontSize: 24,
-                      // fontWeight: FontWeight.w400
-                    ),
-                  ),
-                  Divider(
-                    height: 16,
-                    thickness: 1,
-                    color: Theme.of(context).brightness == Brightness.light
-                        ? Colors.grey
-                        : const Color.fromARGB(255, 75, 75, 75),
-                  ),
-                  if (dish.tags.isNotEmpty) ...[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: dish.tags.map((tag) {
-                          return Chip(
-                            backgroundColor: Color.fromARGB(
-                              255,
-                              0,
-                              255,
-                              8,
-                            ).withAlpha(70),
-                            label: Text(tag),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ] else ...[
-                    const SizedBox(height: 12),
-                  ],
-                  if (dish.localImagePath != null &&
-                      File(dish.localImagePath!).existsSync())
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.file(
-                        File(dish.localImagePath!),
-                        width: double.infinity,
-                        height: 220,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  else
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.network(
-                        dish.imageUrl,
-                        width: double.infinity,
-                        height: 220,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 220,
-                          color:
-                              Theme.of(context).brightness == Brightness.light
-                              ? Colors.white
-                              : Theme.of(context).colorScheme.surface,
-                          child: const Center(
-                            child: Icon(Icons.broken_image, size: 60),
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (dish.description.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: _buildFormattedDishDescription(
-                          context,
-                          dish.description,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.error,
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: () async {
-                            final navigator = Navigator.of(context);
-                            final confirmed = await _confirmDelete(dish);
-                            if (confirmed) {
-                              navigator.pop();
-                              await _removeDish(dish);
-                            }
-                          },
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Löschen'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            _showDishDialog(dish);
-                          },
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Bearbeiten'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 72),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
     );
+
+    if (!mounted) return;
+    if (result == DishDetailResult.edit) {
+      await _showDishDialog(dish);
+    }
   }
 
   bool _isRejectAnimationRunning = false;
